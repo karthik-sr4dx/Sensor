@@ -84,23 +84,27 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async getData(limit? : number): Promise<SensorDataDto[]> {
+  async getData(limit?: number): Promise<{ data: SensorDataDto[], count: number }> {
     try {
-      
       const sensorDataEntities = await this.sensorDataRepository.find({
         order: { timestamp: 'DESC' },
-        take: limit || undefined, 
+        take: limit || undefined,
       });
+  
       // Map the entities to DTOs
-      return sensorDataEntities.map(sensorData => ({
+      const data = sensorDataEntities.map(sensorData => ({
         ident: sensorData.ident,
         temperature: sensorData.temperature,
         weight: sensorData.weight,
         timestamp: new Date(sensorData.timestamp).toISOString(),
       }));
+  
+      // Return both the data and the count
+      return { data, count: data.length };
     } catch (error) {
       console.error('Error retrieving sensor data:', error);
       throw new Error('Could not retrieve sensor data');
     }
   }
+  
 }
