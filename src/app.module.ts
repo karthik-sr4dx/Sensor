@@ -9,6 +9,8 @@ import { getDatabaseConfig } from './config/database.config';
 import { SensorSimulatorModule } from './sensor-simulator/sensor-simulator.module';
 import { CronModule } from './cron/cron.module';
 
+
+
 @Module({
   imports: [
     // ConfigModule.forRoot({ isGlobal: true, load: [typeorm] }),  // Check if 'typeorm' is properly defined
@@ -19,6 +21,7 @@ import { CronModule } from './cron/cron.module';
     SensorModule,
     SensorSimulatorModule,
     CronModule,
+
   ],
   controllers: [AppController],
   providers: [AppService],

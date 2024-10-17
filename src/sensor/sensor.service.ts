@@ -2,18 +2,20 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as mqtt from 'mqtt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SensorData } from 'src/entities/sensor.data.entity';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { SensorDataDto } from './dto/sensor-data.dto';
+import { SensorGateway } from 'src/sensor/sensor.gateway';
 
 @Injectable()
 export class SensorService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
-  private readonly MQTT_TOPIC = 'sensor/VibrationData';  // MQTT topic to subscribe to
-  private readonly MQTT_HOST = 'mqtt://localhost:1883';  // RabbitMQ MQTT broker host
+  private readonly MQTT_TOPIC = 'sensor/VibrationData';
+  private readonly MQTT_HOST = 'mqtt://localhost:1883';
 
   constructor(
     @InjectRepository(SensorData)
     private sensorDataRepository: Repository<SensorData>,
+    private sensorGateway: SensorGateway,  // Inject the WebSocket gateway
   ) {}
 
   async onModuleInit() {
@@ -41,6 +43,11 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         try {
           const sensorData = JSON.parse(message.toString());
           await this.handleSensorData(sensorData);
+
+          // After saving the data, broadcast it to connected clients via WebSocket
+          const data = await this.getData();  // Get latest data (you can add limit or filters if needed)
+          this.sensorGateway.sendSensorDataUpdate(data);  // Broadcast to clients
+          // console.log(data);
         } catch (error) {
           console.error('Error parsing sensor data:', error);
         }
@@ -73,16 +80,16 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
       const newSensorData = this.sensorDataRepository.create({
         ident: sensorData.ident,
         temperature: sensorData.temperature,
-        weight: sensorData.weight, // Ensure this is in the sensorData payload
+        weight: sensorData.weight,
         timestamp: new Date(sensorData.timestamp * 1000).toISOString(),
       });
 
-      // console.log("Data is received and saved");
       await this.sensorDataRepository.save(newSensorData);
     } catch (error) {
       console.error('Error saving sensor data to database:', error);
     }
   }
+
   async getData(limit?: number, startDate?: string, endDate?: string): Promise<{ data: { [sensorId: string]: SensorDataDto[] }, count: { [sensorId: string]: number } }> {
     try {
       const sensorIds = [
@@ -159,7 +166,5 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Could not retrieve sensor data');
     }
   }
-  
-  
   
 }
