@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import * as mqtt from 'mqtt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SensorData } from 'src/entities/sensor.data.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { SensorDataDto } from './dto/sensor-data.dto';
 
 @Injectable()
@@ -77,34 +77,89 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date(sensorData.timestamp * 1000).toISOString(),
       });
 
-      console.log("Data is received and saved");
+      // console.log("Data is received and saved");
       await this.sensorDataRepository.save(newSensorData);
     } catch (error) {
       console.error('Error saving sensor data to database:', error);
     }
   }
-
-  async getData(limit?: number): Promise<{ data: SensorDataDto[], count: number }> {
+  async getData(limit?: number, startDate?: string, endDate?: string): Promise<{ data: { [sensorId: string]: SensorDataDto[] }, count: { [sensorId: string]: number } }> {
     try {
-      const sensorDataEntities = await this.sensorDataRepository.find({
-        order: { timestamp: 'DESC' },
-        take: limit || undefined,
+      const sensorIds = [
+        'sensor_5746',
+        'sensor_4958',
+        'sensor_9532',
+        'sensor_8661',
+        'sensor_5217'
+      ];
+  
+      const query = this.sensorDataRepository.createQueryBuilder('sensorData')
+        .where('sensorData.ident IN (:...sensorIds)', { sensorIds });
+  
+      // Add date filtering using query builder
+      if (startDate) {
+        const start = new Date(`${startDate}T00:00:00Z`); // Using UTC timezone explicitly
+        query.andWhere('sensorData.timestamp >= :startDate', { startDate: start.toISOString() });
+      }
+  
+      if (endDate) {
+        const end = new Date(`${endDate}T23:59:59Z`); // Using UTC timezone explicitly
+        query.andWhere('sensorData.timestamp <= :endDate', { endDate: end.toISOString() });
+      }
+  
+      // Apply limit if provided
+      if (limit) {
+        query.take(limit);
+      }
+  
+      query.orderBy('sensorData.timestamp', 'DESC');
+  
+      const sensorDataEntities = await query.getMany();
+  
+      // Query to get the count of records per sensor ID
+      const counts = await this.sensorDataRepository.createQueryBuilder('sensorData')
+        .select('sensorData.ident', 'sensorId')
+        .addSelect('COUNT(*)', 'count')
+        .where('sensorData.ident IN (:...sensorIds)', { sensorIds })
+        .andWhere(startDate ? 'sensorData.timestamp >= :startDate' : '1=1', { startDate: startDate ? new Date(`${startDate}T00:00:00Z`).toISOString() : undefined })
+        .andWhere(endDate ? 'sensorData.timestamp <= :endDate' : '1=1', { endDate: endDate ? new Date(`${endDate}T23:59:59Z`).toISOString() : undefined })
+        .groupBy('sensorData.ident')
+        .getRawMany();
+  
+      // Prepare the response as before
+      const countResult: { [sensorId: string]: number } = {};
+      sensorIds.forEach(sensorId => {
+        const sensorCount = counts.find(c => c.sensorId === sensorId);
+        countResult[sensorId] = sensorCount ? parseInt(sensorCount.count, 10) : 0;
       });
   
-      // Map the entities to DTOs
-      const data = sensorDataEntities.map(sensorData => ({
-        ident: sensorData.ident,
-        temperature: sensorData.temperature,
-        weight: sensorData.weight,
-        timestamp: new Date(sensorData.timestamp).toISOString(),
-      }));
+      const dataResult: { [sensorId: string]: SensorDataDto[] } = {};
+      sensorIds.forEach(sensorId => {
+        dataResult[sensorId] = [];
+      });
   
-      // Return both the data and the count
-      return { data, count: data.length };
+      sensorDataEntities.forEach(sensorData => {
+        const sensorId = sensorData.ident;
+        if (dataResult[sensorId]) {
+          dataResult[sensorId].push({
+            ident: sensorData.ident,
+            temperature: sensorData.temperature,
+            weight: sensorData.weight,
+            timestamp: new Date(sensorData.timestamp).toISOString(),
+          });
+        }
+      });
+  
+      return {
+        data: dataResult,
+        count: countResult
+      };
     } catch (error) {
       console.error('Error retrieving sensor data:', error);
       throw new Error('Could not retrieve sensor data');
     }
   }
+  
+  
   
 }

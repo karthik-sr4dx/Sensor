@@ -85,6 +85,7 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
                 // Buffer the data if the client is offline
                 console.log('MQTT Client Offline, buffering data...');
                 this.bufferedData.push(payload);
+               
             }
         } catch (error) {
             console.error('Error in sensorSimulator:', error);

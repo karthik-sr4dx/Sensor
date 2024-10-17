@@ -15,12 +15,29 @@ export class SensorController {
     type: Number, 
     description: 'Limit the number of records returned' 
   })
+  @ApiQuery({ 
+    name: 'startDate', 
+    required: false, 
+    type: String, 
+    description: 'Start date for filtering records (in YYYY-MM-DD format)' 
+  })
+  @ApiQuery({ 
+    name: 'endDate', 
+    required: false, 
+    type: String, 
+    description: 'End date for filtering records (in YYYY-MM-DD format)' 
+  })
   @ApiOkResponse({
     status: 200,
     description: 'Successful response', 
     type: [SensorData] // Define the return type (array of SensorData)
   })
-  async getData(@Query('limit') limit?: number) {
-    return await this.sensorService.getData(limit);
+  async getData(
+    @Query('limit') limit?: number, 
+    @Query('startDate') startDate?: string, 
+    @Query('endDate') endDate?: string
+  ) {
+    return await this.sensorService.getData(limit, startDate, endDate);
   }
+
 }
