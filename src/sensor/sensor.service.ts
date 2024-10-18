@@ -4,28 +4,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { SensorData } from 'src/entities/sensor.data.entity';
 import { In, Repository } from 'typeorm';
 import { SensorDataDto } from './dto/sensor-data.dto';
-
+ 
 @Injectable()
 export class SensorService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
-  private readonly MQTT_TOPIC = 'sensor/VibrationData';  // MQTT topic to subscribe to
+  private readonly MQTT_TOPIC = 'sensor/*';  // MQTT topic to subscribe to
   private readonly MQTT_HOST = 'mqtt://localhost:1883';  // RabbitMQ MQTT broker host
-
+ 
   constructor(
     @InjectRepository(SensorData)
     private sensorDataRepository: Repository<SensorData>,
   ) {}
-
+ 
   async onModuleInit() {
     const clientId = `mqtt_client_subscriber_${Math.random().toString(16).slice(2, 10)}`;
-
+ 
     try {
       this.client = mqtt.connect(this.MQTT_HOST, {
         clientId,
         clean: false,
         reconnectPeriod: 1000,
       });
-
+ 
       this.client.on('connect', () => {
         console.log('MQTT Client Connected');
         this.client.subscribe(this.MQTT_TOPIC, { qos: 2 }, (err) => {
@@ -36,7 +36,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
           }
         });
       });
-
+ 
       this.client.on('message', async (topic, message) => {
         try {
           const sensorData = JSON.parse(message.toString());
@@ -45,15 +45,15 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
           console.error('Error parsing sensor data:', error);
         }
       });
-
+ 
       this.client.on('error', (error) => {
         console.error('MQTT Connection Error:', error);
       });
-
+ 
       this.client.on('offline', () => {
         console.warn('MQTT Client went offline');
       });
-
+ 
       this.client.on('reconnect', () => {
         console.log('MQTT Client Reconnecting');
       });
@@ -61,13 +61,13 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
       console.error('Error initializing MQTT connection:', error);
     }
   }
-
+ 
   async onModuleDestroy() {
     this.client.end(true, () => {
       console.log('MQTT Client Disconnected');
     });
   }
-
+ 
   private async handleSensorData(sensorData: any) {
     try {
       const newSensorData = this.sensorDataRepository.create({
@@ -76,7 +76,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         weight: sensorData.weight, // Ensure this is in the sensorData payload
         timestamp: new Date(sensorData.timestamp * 1000).toISOString(),
       });
-
+ 
       // console.log("Data is received and saved");
       await this.sensorDataRepository.save(newSensorData);
     } catch (error) {
@@ -92,30 +92,30 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         'sensor_8661',
         'sensor_5217'
       ];
-  
+ 
       const query = this.sensorDataRepository.createQueryBuilder('sensorData')
         .where('sensorData.ident IN (:...sensorIds)', { sensorIds });
-  
+ 
       // Add date filtering using query builder
       if (startDate) {
         const start = new Date(`${startDate}T00:00:00Z`); // Using UTC timezone explicitly
         query.andWhere('sensorData.timestamp >= :startDate', { startDate: start.toISOString() });
       }
-  
+ 
       if (endDate) {
         const end = new Date(`${endDate}T23:59:59Z`); // Using UTC timezone explicitly
         query.andWhere('sensorData.timestamp <= :endDate', { endDate: end.toISOString() });
       }
-  
+ 
       // Apply limit if provided
       if (limit) {
         query.take(limit);
       }
-  
+ 
       query.orderBy('sensorData.timestamp', 'DESC');
-  
+ 
       const sensorDataEntities = await query.getMany();
-  
+ 
       // Query to get the count of records per sensor ID
       const counts = await this.sensorDataRepository.createQueryBuilder('sensorData')
         .select('sensorData.ident', 'sensorId')
@@ -125,19 +125,19 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         .andWhere(endDate ? 'sensorData.timestamp <= :endDate' : '1=1', { endDate: endDate ? new Date(`${endDate}T23:59:59Z`).toISOString() : undefined })
         .groupBy('sensorData.ident')
         .getRawMany();
-  
+ 
       // Prepare the response as before
       const countResult: { [sensorId: string]: number } = {};
       sensorIds.forEach(sensorId => {
         const sensorCount = counts.find(c => c.sensorId === sensorId);
         countResult[sensorId] = sensorCount ? parseInt(sensorCount.count, 10) : 0;
       });
-  
+ 
       const dataResult: { [sensorId: string]: SensorDataDto[] } = {};
       sensorIds.forEach(sensorId => {
         dataResult[sensorId] = [];
       });
-  
+ 
       sensorDataEntities.forEach(sensorData => {
         const sensorId = sensorData.ident;
         if (dataResult[sensorId]) {
@@ -149,7 +149,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
           });
         }
       });
-  
+ 
       return {
         data: dataResult,
         count: countResult
@@ -159,7 +159,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Could not retrieve sensor data');
     }
   }
-  
-  
-  
+ 
+ 
+ 
 }

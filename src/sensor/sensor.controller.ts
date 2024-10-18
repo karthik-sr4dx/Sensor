@@ -37,7 +37,7 @@ export class SensorController {
     @Query('startDate') startDate?: string, 
     @Query('endDate') endDate?: string
   ) {
-    return await this.sensorService.getData(limit, startDate, endDate);
+    return await this.sensorService.getData(limit);
   }
 
 }
