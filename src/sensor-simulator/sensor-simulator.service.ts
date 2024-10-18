@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, ConsoleLogger } from '@nestjs/common';
 import * as mqtt from 'mqtt';  // Import MQTT
 
 @Injectable()
@@ -70,6 +70,7 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
             if (this.client && this.client.connected) {
                 // Publish the current sensor data to the original MQTT topic
                 this.client.publish(this.MQTT_TOPIC, payload, { qos: 2, retain: true }, (err) => {
+                    
                     if (err) {
                         console.error('Failed to publish sensor data:', err);
                     }
@@ -96,7 +97,9 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
                         console.error('Failed to publish buffered data:', err);
                         // Re-buffer if publishing fails
                         this.bufferedData.unshift(data);
+
                     }
+                    console.log("Data Published");
                 });
             }
         }

@@ -8,7 +8,7 @@ import { SensorDataDto } from './dto/sensor-data.dto';
 @Injectable()
 export class SensorService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
-  private readonly MQTT_TOPIC = 'sensor/*';  // MQTT topic to subscribe to
+  private readonly MQTT_TOPIC = 'sensor/VibrationData';  // MQTT topic to subscribe to
   private readonly MQTT_HOST = 'mqtt://localhost:1883';  // RabbitMQ MQTT broker host
  
   constructor(
@@ -40,6 +40,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
       this.client.on('message', async (topic, message) => {
         try {
           const sensorData = JSON.parse(message.toString());
+          console.log(sensorData);
           await this.handleSensorData(sensorData);
         } catch (error) {
           console.error('Error parsing sensor data:', error);
@@ -77,7 +78,7 @@ export class SensorService implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date(sensorData.timestamp * 1000).toISOString(),
       });
  
-      // console.log("Data is received and saved");
+      console.log("Data is received and saved");
       await this.sensorDataRepository.save(newSensorData);
     } catch (error) {
       console.error('Error saving sensor data to database:', error);
