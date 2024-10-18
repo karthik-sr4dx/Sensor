@@ -1,14 +1,14 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { promisify } from 'util';
 import * as mqtt from 'mqtt';  // Import MQTT
 
 @Injectable()
 export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
     private client: mqtt.MqttClient;
-    private readonly MQTT_TOPIC = 'sensor/VibrationData';  // Define your MQTT topic here
+    private readonly MQTT_TOPIC = 'sensor/VibrationData';  // Topic for current sensor data
+    private readonly MQTT_BUFFERED_TOPIC = 'sensor/VibrationDataBuffered';  // New topic for buffered data
     private readonly MQTT_HOST = 'mqtt://localhost:1883';  // MQTT broker host
-    private bufferedData: any[] = []; // Buffer for storing data when offline
-    
+    private bufferedData: any[] = [];  // Buffer for storing data when offline
+
     onModuleInit() {
         const clientId = `mqtt_client_subscriber_${Math.random().toString(16).slice(2, 10)}`;
         // Initialize MQTT client and connect to broker with clean session false for persistence
@@ -21,7 +21,7 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
         // Handle connection events
         this.client.on('connect', () => {
             console.log('MQTT Client Connected');
-            // Publish buffered data when reconnected
+            // Publish buffered data to a separate topic when reconnected
             this.publishBufferedData();
         });
 
@@ -52,30 +52,23 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
 
     constructor() {}
 
-    private generateSensorData(id : string) {
-        
+    private generateSensorData(id: string) {
         const ident = id;
         const temperature = +(Math.random() * 70 - 20).toFixed(2);  // Temperature between -20°C and 50°C
         const weight = +(Math.random() * 500).toFixed(2);  // Weight between 0 and 500kg
         const timestamp = Math.floor(Date.now() / 1000);  // Current timestamp in seconds
     
-        return {
-            
-            ident,
-            temperature,
-            weight,
-            timestamp
-        };
+        return { ident, temperature, weight, timestamp };
     }
     
-    sensorSimulator(id : string) {
+    sensorSimulator(id: string) {
         try {
             const sensorData = this.generateSensorData(id);
             const payload = JSON.stringify(sensorData);
 
             // Check if MQTT client is connected
             if (this.client && this.client.connected) {
-                // Publish the sensor data to the MQTT topic with QoS level 2 and retain true
+                // Publish the current sensor data to the original MQTT topic
                 this.client.publish(this.MQTT_TOPIC, payload, { qos: 2, retain: true }, (err) => {
                     if (err) {
                         console.error('Failed to publish sensor data:', err);
@@ -85,23 +78,23 @@ export class SensorSimulatorService implements OnModuleInit, OnModuleDestroy {
                 // Buffer the data if the client is offline
                 console.log('MQTT Client Offline, buffering data...');
                 this.bufferedData.push(payload);
-               
             }
         } catch (error) {
             console.error('Error in sensorSimulator:', error);
         }
     }
 
-    // Publish buffered data when the client reconnects
+    // Publish buffered data to a separate topic when the client reconnects
     private publishBufferedData() {
         if (this.bufferedData.length > 0) {
-            console.log(`Publishing ${this.bufferedData.length} buffered messages...`);
+            console.log(`Publishing ${this.bufferedData.length} buffered messages to buffered topic...`);
             while (this.bufferedData.length > 0) {
                 const data = this.bufferedData.shift();
-                this.client.publish(this.MQTT_TOPIC, data, { qos: 2, retain: true }, (err) => {
+                // Publish buffered data to a separate topic
+                this.client.publish(this.MQTT_BUFFERED_TOPIC, data, { qos: 2, retain: true }, (err) => {
                     if (err) {
                         console.error('Failed to publish buffered data:', err);
-                        // Re-buffer if failed
+                        // Re-buffer if publishing fails
                         this.bufferedData.unshift(data);
                     }
                 });

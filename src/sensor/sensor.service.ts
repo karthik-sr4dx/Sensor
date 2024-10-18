@@ -9,7 +9,7 @@ import { SensorGateway } from 'src/sensor/sensor.gateway';
 @Injectable()
 export class SensorService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
-  private readonly MQTT_TOPIC = 'sensor/VibrationData';
+  private readonly MQTT_TOPIC = 'sensor/*';
   private readonly MQTT_HOST = 'mqtt://localhost:1883';
 
   constructor(
